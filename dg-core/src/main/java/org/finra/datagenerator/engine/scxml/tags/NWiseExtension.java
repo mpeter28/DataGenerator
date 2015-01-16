@@ -34,44 +34,48 @@ public class NWiseExtension implements CustomTagExtension<NWiseExtension.NWiseAc
         return "org.finra.datagenerator";
     }
 
-    public List<Set<String>> makeNWiseTuples(String[] variables, int nWise) {
-        List<Set<String>> partialTuples = new ArrayList<>();
-        partialTuples.add(new HashSet<String>());
-        List<Set<String>> completeTuples = new ArrayList<>();
-
-        for (String variable : variables) {
-            List<Set<String>> expandedTuples = new ArrayList<>();
-            for (Set<String> partialTuple : partialTuples) {
-                Set<String> expandedTuple = new HashSet<>(partialTuple);
-                expandedTuple.add(variable);
-
-                if (expandedTuple.size() < nWise) {
-                    expandedTuples.add(expandedTuple);
-                } else {
-                    completeTuples.add(expandedTuple);
-                }
-            }
-            partialTuples.addAll(expandedTuples);
+    private void makeNWiseTuplesHelper(List<Set<String>> resultTuples, String[] variables,
+                                       int startVariable, Set<String> preGivenVariables, int nWise) {
+        if (nWise <= 0) {
+            Set<String> result = new HashSet<>(preGivenVariables);
+            resultTuples.add(result);
+            return;
         }
+
+        for (int varIndex = startVariable; varIndex <= variables.length - nWise; varIndex++) {
+            preGivenVariables.add(variables[varIndex]);
+            makeNWiseTuplesHelper(resultTuples, variables, varIndex + 1, preGivenVariables, nWise - 1);
+            preGivenVariables.remove(variables[varIndex]);
+        }
+    }
+
+    public List<Set<String>> makeNWiseTuples(String[] variables, int nWise) {
+        List<Set<String>> completeTuples = new ArrayList<>();
+        makeNWiseTuplesHelper(completeTuples, variables, 0, new HashSet<String>(), nWise);
 
         return completeTuples;
     }
 
-    public Set<Map<String, String>> expandTupleIntoTestCases(Set<String> tuple, Map<String, String[]> variableDomains) {
-        Set<Map<String, String>> expandedTestCases = new HashSet<>();
-        expandedTestCases.add(new HashMap<String, String>());
-
-        for (String variable : tuple) {
-            Set<Map<String, String>> tempProduct = new HashSet<>();
-            for (Map<String, String> incompleteTestCase : expandedTestCases) {
-                for (String domainValue : variableDomains.get(variable)) {
-                    Map<String, String> moreCompleteTestCase = new HashMap<>(incompleteTestCase);
-                    moreCompleteTestCase.put(variable, domainValue);
-                    tempProduct.add(moreCompleteTestCase);
-                }
-            }
-            expandedTestCases = tempProduct;
+    private void expandTupleHelper(List<Map<String, String>> resultExpansions, String[] variables,
+                                   Map<String, String[]> variableDomains, int nextVariable,
+                                   Map<String, String> partialAssignment) {
+        if (nextVariable >= variables.length) {
+            Map<String, String> resultAssignment = new HashMap<>(partialAssignment);
+            resultExpansions.add(resultAssignment);
+            return;
         }
+
+        String variable = variables[nextVariable];
+        for (String domainValue : variableDomains.get(variable)) {
+            partialAssignment.put(variable, domainValue);
+            expandTupleHelper(resultExpansions, variables, variableDomains, nextVariable + 1, partialAssignment);
+        }
+    }
+
+    public List<Map<String, String>> expandTupleIntoTestCases(Set<String> tuple, Map<String, String[]> variableDomains) {
+        List<Map<String, String>> expandedTestCases = new ArrayList<>();
+        String[] variables = tuple.toArray(new String[tuple.size()]);
+        expandTupleHelper(expandedTestCases, variables, variableDomains, 0, new HashMap<String, String>());
 
         return expandedTestCases;
     }
